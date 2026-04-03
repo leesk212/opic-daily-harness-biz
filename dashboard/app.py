@@ -1,4 +1,22 @@
-"""Dashboard - FastAPI 웹 서버 (GitHub Issues Harness 연동)"""
+"""Dashboard - FastAPI 웹 서버
+
+Harness 시스템의 웹 인터페이스입니다.
+브라우저에서 접속하여 시스템 상태를 모니터링하고 설정을 변경할 수 있습니다.
+
+주요 기능:
+  - 실시간 Agent 상태 모니터링 (3초 polling)
+  - 파이프라인 이력 조회 (GitHub Issues)
+  - 생성된 문제 브라우징
+  - 수동 트리거 / 중지 / 재시작
+  - 설정 관리 (수신자, 주제, QG 프롬프트)
+
+API 엔드포인트 그룹:
+  - 조회: /api/stats, /api/questions, /api/delivery-logs, /api/agent-logs
+  - GitHub: /api/pipelines, /api/pipelines/{n}
+  - 상태: /api/harness-status, /api/schedule
+  - 제어: /api/trigger, /api/shutdown, /api/restart
+  - 설정: /api/recipients, /api/topics, /api/qg-prompt
+"""
 
 import sys
 import os

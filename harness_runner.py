@@ -1,9 +1,24 @@
-"""Harness Runner - Agent들을 독립 워커로 상시 실행 (Langfuse 트레이싱 포함)
+"""Harness Runner - 4개 Agent Worker를 asyncio로 동시 실행하는 핵심 모듈
 
-각 Agent는 GitHub Issues를 감시하며 자기 차례가 오면 동작합니다.
-Orchestrator가 주기적으로 파이프라인을 트리거하고,
-나머지 Agent들은 Issue 댓글을 통해 상태를 주고받습니다.
-모든 Agent 동작은 Langfuse로 트레이싱됩니다.
+이 파일은 Harness 시스템의 "두뇌"입니다.
+4개의 독립적인 asyncio 코루틴(Worker)이 동시에 실행되며,
+각자 GitHub Issues를 polling하다가 자기 차례가 오면 동작합니다.
+
+Worker 실행 흐름:
+  1. orchestrator_worker: _trigger_q 큐에서 트리거를 받으면 → Issue 생성
+  2. content_manager_worker: 10초마다 Issue를 확인 → CM 댓글 없으면 → 주제/유형 선택
+  3. question_generator_worker: 15초마다 Issue를 확인 → CM 완료 + QG 미완료면 → 문제 생성
+  4. delivery_worker: 10초마다 Issue를 확인 → QG 완료 + Delivery 미완료면 → 카카오톡 전송
+
+핵심 규칙:
+  - Agent 간 직접 호출 없음 (Issue Comment를 통해서만 데이터 전달)
+  - 각 Worker는 issue_has_agent_comment()로 이전 Agent의 완료 여부를 확인
+  - get_agent_data_from_comments()로 이전 Agent의 JSON 결과를 파싱
+
+스레드 안전:
+  - _shutdown: threading.Event (외부에서 중지 요청)
+  - _trigger_q: queue.Queue (외부에서 트리거 요청)
+  - AGENT_STATUS: dict (Dashboard에서 실시간 상태 조회)
 """
 
 import asyncio
@@ -23,7 +38,9 @@ from agents.content_manager import ContentManagerAgent
 from agents.question_generator import QuestionGeneratorAgent
 from agents.delivery import DeliveryAgent
 
-# 상태 공유 (Dashboard에서 조회용)
+# ============================================================
+# 공유 상태 - Dashboard가 3초마다 이 dict를 조회하여 UI에 표시
+# ============================================================
 AGENT_STATUS = {
     "orchestrator": {"state": "idle", "last_run": None, "detail": ""},
     "content_manager": {"state": "idle", "last_run": None, "detail": ""},
@@ -80,6 +97,9 @@ def get_trace_id(issue_number):
 
 
 def find_pending_issues():
+    """처리 대기 중인 파이프라인 Issue 조회.
+    라벨이 'pipeline' + 'status:in-progress'이고 open 상태인 Issue를 찾습니다.
+    """
     try:
         output = _gh([
             "issue", "list", "--repo", REPO,
@@ -94,6 +114,9 @@ def find_pending_issues():
 
 
 def issue_has_agent_comment(issue_number, agent_name):
+    """특정 Issue에 해당 Agent의 성공/실패 댓글이 있는지 확인.
+    댓글 본문에서 'Agent: `{name}`' 패턴과 'success'/'failed' 문자열을 검색합니다.
+    """
     try:
         detail = harness.get_issue_detail(issue_number)
         for c in detail.get("comments", []):
@@ -106,6 +129,10 @@ def issue_has_agent_comment(issue_number, agent_name):
 
 
 def get_agent_data_from_comments(issue_number, agent_name):
+    """Issue 댓글에서 특정 Agent의 JSON 결과 데이터를 추출.
+    ```json ... ``` 블록을 파싱하여 dict로 반환합니다.
+    예: ContentManager의 {"topic": "해외 여행", "question_type": "롤플레이"}
+    """
     try:
         detail = harness.get_issue_detail(issue_number)
         for c in detail.get("comments", []):
@@ -119,10 +146,14 @@ def get_agent_data_from_comments(issue_number, agent_name):
         return {}
 
 
-# === Agent Workers ===
+# ============================================================
+# Agent Workers - 각각 독립적인 asyncio 코루틴으로 실행
+# ============================================================
 
 async def orchestrator_worker():
-    """Trigger-based orchestrator: polls thread-safe queue."""
+    """Orchestrator Worker: _trigger_q 큐에서 트리거를 받으면 GitHub Issue를 생성.
+    스케줄러나 Dashboard의 "Run Now" 버튼이 큐에 트리거를 넣습니다.
+    """
     while not _shutdown.is_set():
         update_status("orchestrator", "waiting", "Waiting for trigger (schedule or manual)...")
         # Poll the thread-safe queue
