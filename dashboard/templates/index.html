@@ -208,81 +208,80 @@
                     <h3>Agent Pipeline Graph</h3>
                     <span class="pg-meta" id="pgMeta">Real-time / 3s refresh</span>
                 </div>
-                <svg class="pg-svg" width="100%" height="340" viewBox="0 0 960 340" xmlns="http://www.w3.org/2000/svg">
+                <svg class="pg-svg" width="100%" height="260" viewBox="0 0 1000 260" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <marker id="arrow-idle" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                            <path d="M0,0 L8,3 L0,6" fill="#475569"/>
-                        </marker>
-                        <marker id="arrow-active" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                            <path d="M0,0 L8,3 L0,6" fill="#3b82f6"/>
-                        </marker>
-                        <marker id="arrow-done" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                            <path d="M0,0 L8,3 L0,6" fill="#22c55e"/>
-                        </marker>
+                        <marker id="arrow-idle" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#475569"/></marker>
+                        <marker id="arrow-active" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3b82f6"/></marker>
+                        <marker id="arrow-done" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#22c55e"/></marker>
                         <filter id="glow-blue"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#3b82f6" flood-opacity="0.6"/></filter>
                         <filter id="glow-green"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#22c55e" flood-opacity="0.6"/></filter>
                         <filter id="glow-red"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#ef4444" flood-opacity="0.6"/></filter>
                     </defs>
 
-                    <!-- GitHub Issues (central harness) -->
-                    <rect x="370" y="8" width="220" height="36" rx="18" fill="#334155" stroke="#475569" stroke-width="1"/>
-                    <text x="480" y="30" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">GitHub Issues (Harness)</text>
+                    <!-- GitHub Issues Hub (top center) -->
+                    <rect x="360" y="6" width="280" height="32" rx="16" fill="#334155" stroke="#475569" stroke-width="1"/>
+                    <text x="500" y="27" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">GitHub Issues (Harness Layer)</text>
 
-                    <!-- Edges: Orchestrator → ContentManager -->
-                    <path id="edge-orch-cm" d="M 230 140 C 280 140, 300 140, 350 140" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow-idle)"/>
-                    <!-- Edges: ContentManager → QuestionGenerator -->
-                    <path id="edge-cm-qg" d="M 560 140 C 610 140, 630 140, 680 140" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow-idle)"/>
-                    <!-- Edges: QuestionGenerator → Delivery -->
-                    <path id="edge-qg-del" d="M 480 220 C 480 260, 480 260, 480 280" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow-idle)"/>
-                    <!-- Vertical: Orchestrator → GitHub Issues -->
-                    <line id="edge-orch-gh" x1="130" y1="108" x2="370" y2="30" stroke="#475569" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
-                    <!-- Vertical: Delivery → GitHub Issues -->
-                    <line id="edge-del-gh" x1="830" y1="108" x2="590" y2="30" stroke="#475569" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+                    <!-- Dotted lines from hub to each node -->
+                    <line x1="400" y1="38" x2="110" y2="70" stroke="#334155" stroke-width="1" stroke-dasharray="3,3" opacity="0.4"/>
+                    <line x1="460" y1="38" x2="355" y2="70" stroke="#334155" stroke-width="1" stroke-dasharray="3,3" opacity="0.4"/>
+                    <line x1="540" y1="38" x2="620" y2="70" stroke="#334155" stroke-width="1" stroke-dasharray="3,3" opacity="0.4"/>
+                    <line x1="600" y1="38" x2="865" y2="70" stroke="#334155" stroke-width="1" stroke-dasharray="3,3" opacity="0.4"/>
 
-                    <!-- NODE: Orchestrator -->
-                    <g id="node-orchestrator" transform="translate(50, 90)">
-                        <rect id="nodebg-orchestrator" width="180" height="100" rx="12" fill="#0f172a" stroke="#475569" stroke-width="2"/>
-                        <circle id="nodepulse-orchestrator" cx="160" cy="16" r="5" fill="#475569"/>
-                        <text x="90" y="30" text-anchor="middle" fill="#f1f5f9" font-size="14" font-weight="700">Orchestrator</text>
-                        <text id="nodestate-orchestrator" x="90" y="52" text-anchor="middle" fill="#64748b" font-size="12">idle</text>
-                        <text id="nodedetail-orchestrator" x="90" y="72" text-anchor="middle" fill="#475569" font-size="10">-</text>
-                        <text id="nodetime-orchestrator" x="90" y="90" text-anchor="middle" fill="#334155" font-size="9"></text>
+                    <!-- EDGE: Orchestrator → ContentManager -->
+                    <path id="edge-orch-cm" d="M 195 120 L 255 120" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow-idle)"/>
+                    <text id="edgelabel-orch-cm" x="225" y="112" text-anchor="middle" fill="#475569" font-size="9">Issue</text>
+
+                    <!-- EDGE: ContentManager → QuestionGenerator -->
+                    <path id="edge-cm-qg" d="M 455 120 L 520 120" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow-idle)"/>
+                    <text id="edgelabel-cm-qg" x="488" y="112" text-anchor="middle" fill="#475569" font-size="9">topic/type</text>
+
+                    <!-- EDGE: QuestionGenerator → Delivery -->
+                    <path id="edge-qg-del" d="M 720 120 L 780 120" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow-idle)"/>
+                    <text id="edgelabel-qg-del" x="750" y="112" text-anchor="middle" fill="#475569" font-size="9">question</text>
+
+                    <!-- NODE: Orchestrator (x=10) -->
+                    <g id="node-orchestrator" transform="translate(10, 70)">
+                        <rect id="nodebg-orchestrator" width="185" height="100" rx="12" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+                        <circle id="nodepulse-orchestrator" cx="168" cy="14" r="5" fill="#475569"/>
+                        <text x="92" y="28" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="700">Orchestrator</text>
+                        <text id="nodestate-orchestrator" x="92" y="48" text-anchor="middle" fill="#64748b" font-size="12">idle</text>
+                        <text id="nodedetail-orchestrator" x="92" y="68" text-anchor="middle" fill="#475569" font-size="10">-</text>
+                        <text id="nodetime-orchestrator" x="92" y="88" text-anchor="middle" fill="#334155" font-size="9"></text>
                     </g>
 
-                    <!-- NODE: ContentManager -->
-                    <g id="node-content_manager" transform="translate(350, 90)">
-                        <rect id="nodebg-content_manager" width="210" height="100" rx="12" fill="#0f172a" stroke="#475569" stroke-width="2"/>
-                        <circle id="nodepulse-content_manager" cx="190" cy="16" r="5" fill="#475569"/>
-                        <text x="105" y="30" text-anchor="middle" fill="#f1f5f9" font-size="14" font-weight="700">ContentManager</text>
-                        <text id="nodestate-content_manager" x="105" y="52" text-anchor="middle" fill="#64748b" font-size="12">idle</text>
-                        <text id="nodedetail-content_manager" x="105" y="72" text-anchor="middle" fill="#475569" font-size="10">-</text>
-                        <text id="nodetime-content_manager" x="105" y="90" text-anchor="middle" fill="#334155" font-size="9"></text>
+                    <!-- NODE: ContentManager (x=255) -->
+                    <g id="node-content_manager" transform="translate(255, 70)">
+                        <rect id="nodebg-content_manager" width="200" height="100" rx="12" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+                        <circle id="nodepulse-content_manager" cx="183" cy="14" r="5" fill="#475569"/>
+                        <text x="100" y="28" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="700">ContentManager</text>
+                        <text id="nodestate-content_manager" x="100" y="48" text-anchor="middle" fill="#64748b" font-size="12">idle</text>
+                        <text id="nodedetail-content_manager" x="100" y="68" text-anchor="middle" fill="#475569" font-size="10">-</text>
+                        <text id="nodetime-content_manager" x="100" y="88" text-anchor="middle" fill="#334155" font-size="9"></text>
                     </g>
 
-                    <!-- NODE: QuestionGenerator -->
-                    <g id="node-question_generator" transform="translate(660, 90)">
-                        <rect id="nodebg-question_generator" width="220" height="100" rx="12" fill="#0f172a" stroke="#475569" stroke-width="2"/>
-                        <circle id="nodepulse-question_generator" cx="200" cy="16" r="5" fill="#475569"/>
-                        <text x="110" y="30" text-anchor="middle" fill="#f1f5f9" font-size="14" font-weight="700">QuestionGenerator</text>
-                        <text id="nodestate-question_generator" x="110" y="52" text-anchor="middle" fill="#64748b" font-size="12">idle</text>
-                        <text id="nodedetail-question_generator" x="110" y="72" text-anchor="middle" fill="#475569" font-size="10">-</text>
-                        <text id="nodetime-question_generator" x="110" y="90" text-anchor="middle" fill="#334155" font-size="9"></text>
+                    <!-- NODE: QuestionGenerator (x=520) -->
+                    <g id="node-question_generator" transform="translate(520, 70)">
+                        <rect id="nodebg-question_generator" width="200" height="100" rx="12" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+                        <circle id="nodepulse-question_generator" cx="183" cy="14" r="5" fill="#475569"/>
+                        <text x="100" y="28" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="700">QuestionGenerator</text>
+                        <text id="nodestate-question_generator" x="100" y="48" text-anchor="middle" fill="#64748b" font-size="12">idle</text>
+                        <text id="nodedetail-question_generator" x="100" y="68" text-anchor="middle" fill="#475569" font-size="10">-</text>
+                        <text id="nodetime-question_generator" x="100" y="88" text-anchor="middle" fill="#334155" font-size="9"></text>
                     </g>
 
-                    <!-- NODE: Delivery -->
-                    <g id="node-delivery" transform="translate(350, 230)">
-                        <rect id="nodebg-delivery" width="260" height="100" rx="12" fill="#0f172a" stroke="#475569" stroke-width="2"/>
-                        <circle id="nodepulse-delivery" cx="240" cy="16" r="5" fill="#475569"/>
-                        <text x="130" y="30" text-anchor="middle" fill="#f1f5f9" font-size="14" font-weight="700">Delivery (Slack)</text>
-                        <text id="nodestate-delivery" x="130" y="52" text-anchor="middle" fill="#64748b" font-size="12">idle</text>
-                        <text id="nodedetail-delivery" x="130" y="72" text-anchor="middle" fill="#475569" font-size="10">-</text>
-                        <text id="nodetime-delivery" x="130" y="90" text-anchor="middle" fill="#334155" font-size="9"></text>
+                    <!-- NODE: Delivery (x=780) -->
+                    <g id="node-delivery" transform="translate(780, 70)">
+                        <rect id="nodebg-delivery" width="200" height="100" rx="12" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+                        <circle id="nodepulse-delivery" cx="183" cy="14" r="5" fill="#475569"/>
+                        <text x="100" y="28" text-anchor="middle" fill="#f1f5f9" font-size="13" font-weight="700">Delivery (Slack)</text>
+                        <text id="nodestate-delivery" x="100" y="48" text-anchor="middle" fill="#64748b" font-size="12">idle</text>
+                        <text id="nodedetail-delivery" x="100" y="68" text-anchor="middle" fill="#475569" font-size="10">-</text>
+                        <text id="nodetime-delivery" x="100" y="88" text-anchor="middle" fill="#334155" font-size="9"></text>
                     </g>
 
-                    <!-- Edge Labels -->
-                    <text id="edgelabel-orch-cm" x="290" y="130" text-anchor="middle" fill="#475569" font-size="9">topic/type</text>
-                    <text id="edgelabel-cm-qg" x="625" y="130" text-anchor="middle" fill="#475569" font-size="9">question</text>
-                    <text id="edgelabel-qg-del" x="500" y="258" text-anchor="middle" fill="#475569" font-size="9">slack send</text>
+                    <!-- Flow direction label -->
+                    <text x="500" y="250" text-anchor="middle" fill="#334155" font-size="10">Orchestrator  →  ContentManager  →  QuestionGenerator  →  Delivery</text>
                 </svg>
             </div>
 
