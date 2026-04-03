@@ -187,6 +187,7 @@
                 <a class="gh-link" href="https://cloud.langfuse.com" target="_blank">Langfuse</a>
                 <div style="margin-left:auto;display:flex;gap:8px">
                     <button class="btn btn-sm" onclick="triggerPipeline()" id="triggerBtn">Run Now</button>
+                    <button class="btn btn-sm" style="background:#22c55e" onclick="restartHarness()" id="restartBtn" disabled>Restart</button>
                     <button class="btn btn-sm" style="background:#ef4444" onclick="shutdownHarness()" id="shutdownBtn">Stop All</button>
                 </div>
             </div>
@@ -766,7 +767,7 @@
         }
 
         async function shutdownHarness() {
-            if (!confirm('Harness를 중지하시겠습니까? 모든 Agent가 정지됩니다.')) return;
+            if (!confirm('Agent를 모두 중지하시겠습니까?\n(Dashboard와 Scheduler는 유지됩니다)')) return;
             const btn = document.getElementById('shutdownBtn');
             btn.disabled = true;
             btn.textContent = 'Stopping...';
@@ -774,12 +775,29 @@
                 const res = await fetch(`${API}/api/shutdown`, { method: 'POST' });
                 const data = await res.json();
                 alert(data.message || data.status);
-                fetchHarnessStatus();
+                setTimeout(fetchHarnessStatus, 2000);
             } catch (e) {
                 alert('Error: ' + e.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Stop All';
+            }
+        }
+
+        async function restartHarness() {
+            const btn = document.getElementById('restartBtn');
+            btn.disabled = true;
+            btn.textContent = 'Starting...';
+            try {
+                const res = await fetch(`${API}/api/restart`, { method: 'POST' });
+                const data = await res.json();
+                alert(data.message || data.status);
+                setTimeout(fetchHarnessStatus, 2000);
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Restart';
             }
         }
 
@@ -882,9 +900,15 @@
                 document.getElementById('harnessMeta').textContent = h.started_at
                     ? `Started: ${new Date(h.started_at).toLocaleString('ko-KR')} | Runs: ${h.total_runs || 0}`
                     : 'Not started';
-                document.getElementById('harnessInfo').textContent = h.loop_interval
-                    ? `Interval: ${h.loop_interval}s`
-                    : '';
+                // 버튼 상태 제어
+                const shutdownBtn = document.getElementById('shutdownBtn');
+                const restartBtn = document.getElementById('restartBtn');
+                const triggerBtn = document.getElementById('triggerBtn');
+                if (shutdownBtn) { shutdownBtn.disabled = !isRunning; }
+                if (restartBtn) { restartBtn.disabled = isRunning; }
+                if (triggerBtn) { triggerBtn.disabled = !isRunning; }
+
+                document.getElementById('harnessInfo').textContent = isRunning ? 'Trigger-based' : 'Stopped';
 
                 // Update graph nodes
                 const agents = ['orchestrator', 'content_manager', 'question_generator', 'delivery'];

@@ -86,14 +86,28 @@ async def api_trigger():
 
 @app.post("/api/shutdown")
 async def api_shutdown():
-    """Harness 전체 중지"""
+    """Agent만 중지 (Dashboard + Scheduler는 유지)"""
     try:
         from harness_runner import shutdown_harness
         ok = shutdown_harness()
         if ok:
-            return {"status": "shutdown", "message": "Harness shutdown signal sent."}
+            return {"status": "shutdown", "message": "All agents stopped. Dashboard is still running."}
         else:
             return {"status": "error", "message": "Harness is not running."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/restart")
+async def api_restart():
+    """Agent 재시작"""
+    try:
+        import run as run_module
+        ok = run_module.start_harness()
+        if ok:
+            return {"status": "started", "message": "Harness restarted. Agents are running."}
+        else:
+            return {"status": "error", "message": "Harness is already running."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
