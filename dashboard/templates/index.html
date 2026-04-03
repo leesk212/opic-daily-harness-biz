@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPIC Agent Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+
+        .header {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            padding: 24px 32px;
+            border-bottom: 1px solid #475569;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header h1 { font-size: 24px; color: #f1f5f9; }
+        .header .badge { background: #22c55e; color: #000; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600; }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: #1e293b; border-radius: 12px; padding: 4px; }
+        .tab { padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; color: #94a3b8; border: none; background: none; }
+        .tab.active { background: #334155; color: #f1f5f9; }
+        .tab:hover { color: #f1f5f9; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155;
+        }
+        .stat-card .label { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+        .stat-card .value { font-size: 32px; font-weight: 700; }
+        .stat-card .value.green { color: #22c55e; }
+        .stat-card .value.red { color: #ef4444; }
+        .stat-card .value.blue { color: #3b82f6; }
+        .stat-card .value.yellow { color: #eab308; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+        .panel {
+            background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden;
+        }
+        .panel-header {
+            padding: 16px 20px; border-bottom: 1px solid #334155; font-weight: 600; font-size: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .panel-body { padding: 16px 20px; max-height: 500px; overflow-y: auto; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 8px 12px; font-size: 12px; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #334155; }
+        td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #1e293b; }
+        tr:hover { background: #334155; }
+
+        .badge-sm { padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+        .badge-success { background: #166534; color: #4ade80; }
+        .badge-failed { background: #7f1d1d; color: #fca5a5; }
+        .badge-started { background: #1e3a5f; color: #93c5fd; }
+        .badge-open { background: #1e3a5f; color: #93c5fd; }
+        .badge-closed { background: #3f3f46; color: #a1a1aa; }
+        .badge-OPEN { background: #1e3a5f; color: #93c5fd; }
+        .badge-CLOSED { background: #3f3f46; color: #a1a1aa; }
+
+        .chart-bar { display: flex; align-items: center; margin-bottom: 8px; }
+        .chart-bar .label { width: 120px; font-size: 13px; color: #94a3b8; flex-shrink: 0; }
+        .chart-bar .bar-bg { flex: 1; background: #334155; border-radius: 4px; height: 24px; overflow: hidden; }
+        .chart-bar .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; font-weight: 600; min-width: 30px; }
+        .bar-topic { background: linear-gradient(90deg, #3b82f6, #6366f1); }
+        .bar-type { background: linear-gradient(90deg, #22c55e, #14b8a6); }
+
+        .btn { background: #3b82f6; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .btn:hover { background: #2563eb; }
+        .btn:disabled { background: #475569; cursor: not-allowed; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+        .question-card { background: #0f172a; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #334155; }
+        .question-card .q-meta { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+        .question-card .q-text { font-size: 14px; color: #f1f5f9; line-height: 1.5; }
+
+        .refresh-note { font-size: 12px; color: #64748b; }
+
+        /* Pipeline cards */
+        .pipeline-card {
+            background: #0f172a; border-radius: 10px; padding: 16px; margin-bottom: 12px;
+            border: 1px solid #334155; cursor: pointer; transition: border-color 0.2s;
+        }
+        .pipeline-card:hover { border-color: #3b82f6; }
+        .pipeline-card .p-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .pipeline-card .p-title { font-size: 14px; font-weight: 600; }
+        .pipeline-card .p-time { font-size: 12px; color: #64748b; }
+        .pipeline-card .p-labels { display: flex; gap: 6px; flex-wrap: wrap; }
+        .pipeline-card .p-label { padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+
+        /* Pipeline detail */
+        .pipeline-detail { display: none; }
+        .pipeline-detail.active { display: block; }
+
+        .agent-step {
+            background: #0f172a; border-left: 3px solid #334155; padding: 12px 16px; margin-bottom: 8px;
+            border-radius: 0 8px 8px 0;
+        }
+        .agent-step.step-success { border-left-color: #22c55e; }
+        .agent-step.step-failed { border-left-color: #ef4444; }
+        .agent-step.step-started { border-left-color: #3b82f6; }
+        .agent-step .step-header { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+        .agent-step .step-agent { font-weight: 600; color: #f1f5f9; }
+        .agent-step .step-time { color: #64748b; font-size: 12px; }
+        .agent-step .step-body { font-size: 12px; color: #94a3b8; }
+        .agent-step .step-body pre { background: #1e293b; padding: 8px; border-radius: 6px; margin-top: 6px; overflow-x: auto; font-size: 11px; }
+
+        .back-btn { background: none; border: 1px solid #475569; color: #94a3b8; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; margin-bottom: 16px; }
+        .back-btn:hover { color: #f1f5f9; border-color: #64748b; }
+
+        .gh-link { color: #3b82f6; text-decoration: none; font-size: 12px; }
+        .gh-link:hover { text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>OPIC Agent Dashboard</h1>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <span class="refresh-note" id="lastUpdate"></span>
+            <a class="gh-link" href="https://github.com/leesk212/opic-daily-harness/issues" target="_blank">GitHub Issues</a>
+            <span class="badge">AL Level</span>
+            <button class="btn" onclick="triggerPipeline()" id="triggerBtn">Run Now</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('overview')">Overview</button>
+            <button class="tab" onclick="switchTab('pipelines')">Pipelines (GitHub Issues)</button>
+            <button class="tab" onclick="switchTab('questions')">Questions</button>
+            <button class="tab" onclick="switchTab('logs')">Agent Logs</button>
+        </div>
+
+        <!-- Tab: Overview -->
+        <div id="tab-overview" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">Total Questions</div>
+                    <div class="value blue" id="totalQuestions">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Successful Deliveries</div>
+                    <div class="value green" id="successDeliveries">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Failed Deliveries</div>
+                    <div class="value red" id="failedDeliveries">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Pipeline Runs</div>
+                    <div class="value yellow" id="pipelineCount">-</div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="panel">
+                    <div class="panel-header">Topic Distribution</div>
+                    <div class="panel-body" id="topicChart"></div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">Question Type Distribution</div>
+                    <div class="panel-body" id="typeChart"></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Recent Pipelines
+                    <a class="gh-link" href="https://github.com/leesk212/opic-daily-harness/issues" target="_blank">View all on GitHub</a>
+                </div>
+                <div class="panel-body" id="recentPipelines"><p style="color:#64748b">Loading...</p></div>
+            </div>
+        </div>
+
+        <!-- Tab: Pipelines (GitHub Issues) -->
+        <div id="tab-pipelines" class="tab-content">
+            <div id="pipelineList">
+                <div class="panel">
+                    <div class="panel-header">
+                        Pipeline Runs (GitHub Issues Harness)
+                        <button class="btn btn-sm" onclick="fetchPipelines()">Refresh</button>
+                    </div>
+                    <div class="panel-body" id="pipelineListBody"><p style="color:#64748b">Loading...</p></div>
+                </div>
+            </div>
+
+            <div id="pipelineDetail" class="pipeline-detail">
+                <button class="back-btn" onclick="showPipelineList()">&larr; Back to list</button>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span id="detailTitle">Pipeline Detail</span>
+                        <a id="detailGhLink" class="gh-link" href="#" target="_blank">Open on GitHub</a>
+                    </div>
+                    <div class="panel-body" id="pipelineDetailBody"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Questions -->
+        <div id="tab-questions" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">Generated Questions</div>
+                <div class="panel-body" id="questionsList"><p style="color:#64748b">Loading...</p></div>
+            </div>
+        </div>
+
+        <!-- Tab: Agent Logs -->
+        <div id="tab-logs" class="tab-content">
+            <div class="grid-2">
+                <div class="panel">
+                    <div class="panel-header">Agent Activity Log (Local DB)</div>
+                    <div class="panel-body">
+                        <table>
+                            <thead><tr><th>Time</th><th>Agent</th><th>Action</th><th>Status</th></tr></thead>
+                            <tbody id="agentLogs"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">Delivery History</div>
+                    <div class="panel-body">
+                        <table>
+                            <thead><tr><th>Time</th><th>Q#</th><th>Channel</th><th>Status</th><th>Error</th></tr></thead>
+                            <tbody id="deliveryLogs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '';
+        const GH_REPO = 'leesk212/opic-daily-harness';
+
+        // --- Tabs ---
+        function switchTab(name) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            event.target.classList.add('active');
+
+            if (name === 'pipelines') fetchPipelines();
+            if (name === 'questions') fetchQuestions();
+            if (name === 'logs') fetchLogs();
+        }
+
+        // --- Overview ---
+        async function fetchOverview() {
+            try {
+                const [statsRes, pipelinesRes] = await Promise.all([
+                    fetch(`${API}/api/stats`),
+                    fetch(`${API}/api/pipelines`),
+                ]);
+                const stats = await statsRes.json();
+                const pipelines = await pipelinesRes.json();
+
+                renderStats(stats, pipelines.length);
+                renderCharts(stats);
+                renderRecentPipelines(pipelines.slice(0, 5));
+                document.getElementById('lastUpdate').textContent = `Updated: ${new Date().toLocaleTimeString('ko-KR')}`;
+            } catch (e) {
+                console.error('Overview fetch error:', e);
+            }
+        }
+
+        function renderStats(stats, pipelineCount) {
+            document.getElementById('totalQuestions').textContent = stats.total_questions;
+            document.getElementById('successDeliveries').textContent = stats.successful_deliveries;
+            document.getElementById('failedDeliveries').textContent = stats.failed_deliveries;
+            document.getElementById('pipelineCount').textContent = pipelineCount;
+        }
+
+        function renderCharts(stats) {
+            const maxTopic = Math.max(...stats.topic_distribution.map(d => d[1]), 1);
+            document.getElementById('topicChart').innerHTML = stats.topic_distribution.map(d =>
+                `<div class="chart-bar">
+                    <div class="label">${d[0]}</div>
+                    <div class="bar-bg"><div class="bar-fill bar-topic" style="width:${(d[1]/maxTopic)*100}%">${d[1]}</div></div>
+                </div>`
+            ).join('') || '<p style="color:#64748b">No data yet</p>';
+
+            const maxType = Math.max(...stats.type_distribution.map(d => d[1]), 1);
+            document.getElementById('typeChart').innerHTML = stats.type_distribution.map(d =>
+                `<div class="chart-bar">
+                    <div class="label">${d[0].substring(0, 15)}</div>
+                    <div class="bar-bg"><div class="bar-fill bar-type" style="width:${(d[1]/maxType)*100}%">${d[1]}</div></div>
+                </div>`
+            ).join('') || '<p style="color:#64748b">No data yet</p>';
+        }
+
+        function renderRecentPipelines(pipelines) {
+            document.getElementById('recentPipelines').innerHTML = pipelines.map(p => {
+                const labels = (p.labels || []).map(l => {
+                    const name = l.name || l;
+                    const color = l.color ? `#${l.color}` : '#475569';
+                    return `<span class="p-label" style="background:${color}22;color:${color};border:1px solid ${color}44">${name}</span>`;
+                }).join('');
+                return `<div class="pipeline-card" onclick="switchTab('pipelines');showPipelineDetail(${p.number})">
+                    <div class="p-header">
+                        <span class="p-title">#${p.number} ${p.title}</span>
+                        <span class="badge-sm badge-${p.state}">${p.state}</span>
+                    </div>
+                    <div class="p-time">${new Date(p.createdAt).toLocaleString('ko-KR')}</div>
+                    <div class="p-labels" style="margin-top:6px">${labels}</div>
+                </div>`;
+            }).join('') || '<p style="color:#64748b">No pipelines yet. Click "Run Now" to start!</p>';
+        }
+
+        // --- Pipelines ---
+        let pipelinesCache = [];
+
+        async function fetchPipelines() {
+            try {
+                const res = await fetch(`${API}/api/pipelines`);
+                pipelinesCache = await res.json();
+                renderPipelineList(pipelinesCache);
+            } catch (e) {
+                console.error('Pipeline fetch error:', e);
+            }
+        }
+
+        function renderPipelineList(pipelines) {
+            document.getElementById('pipelineListBody').innerHTML = pipelines.map(p => {
+                const labels = (p.labels || []).map(l => {
+                    const name = l.name || l;
+                    const color = l.color ? `#${l.color}` : '#475569';
+                    return `<span class="p-label" style="background:${color}22;color:${color};border:1px solid ${color}44">${name}</span>`;
+                }).join('');
+                const comments = p.comments ? p.comments.length || p.comments : 0;
+                return `<div class="pipeline-card" onclick="showPipelineDetail(${p.number})">
+                    <div class="p-header">
+                        <span class="p-title">#${p.number} ${p.title}</span>
+                        <span class="badge-sm badge-${p.state}">${p.state}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:6px">
+                        <div class="p-labels">${labels}</div>
+                        <span style="font-size:12px;color:#64748b">${comments} agent steps</span>
+                    </div>
+                    <div class="p-time" style="margin-top:4px">${new Date(p.createdAt).toLocaleString('ko-KR')}</div>
+                </div>`;
+            }).join('') || '<p style="color:#64748b">No pipelines yet</p>';
+        }
+
+        function showPipelineList() {
+            document.getElementById('pipelineList').style.display = 'block';
+            document.getElementById('pipelineDetail').classList.remove('active');
+        }
+
+        async function showPipelineDetail(issueNumber) {
+            document.getElementById('pipelineList').style.display = 'none';
+            document.getElementById('pipelineDetail').classList.add('active');
+            document.getElementById('detailTitle').textContent = `Pipeline #${issueNumber}`;
+            document.getElementById('detailGhLink').href = `https://github.com/${GH_REPO}/issues/${issueNumber}`;
+            document.getElementById('pipelineDetailBody').innerHTML = '<p style="color:#64748b">Loading...</p>';
+
+            try {
+                const res = await fetch(`${API}/api/pipelines/${issueNumber}`);
+                const detail = await res.json();
+                renderPipelineDetail(detail);
+            } catch (e) {
+                document.getElementById('pipelineDetailBody').innerHTML = `<p style="color:#ef4444">Error: ${e.message}</p>`;
+            }
+        }
+
+        function renderPipelineDetail(detail) {
+            const comments = detail.comments || [];
+            let html = `<div style="margin-bottom:16px">
+                <span class="badge-sm badge-${detail.state}">${detail.state}</span>
+                <span style="font-size:13px;color:#94a3b8;margin-left:8px">${detail.title}</span>
+                <span style="font-size:12px;color:#64748b;margin-left:12px">${new Date(detail.createdAt).toLocaleString('ko-KR')}</span>
+            </div>`;
+
+            html += '<h3 style="font-size:14px;margin-bottom:12px;color:#94a3b8">Agent Steps (via GitHub Issue Comments)</h3>';
+
+            comments.forEach(c => {
+                const body = c.body || '';
+                // Parse agent name and status from comment body
+                const agentMatch = body.match(/Agent: `(\w+)`/);
+                const statusMatch = body.match(/\*\*Status:\*\* `(\w+)`/);
+                const agent = agentMatch ? agentMatch[1] : 'unknown';
+                const status = statusMatch ? statusMatch[1] : 'info';
+
+                html += `<div class="agent-step step-${status}">
+                    <div class="step-header">
+                        <span class="step-agent">${agent}</span>
+                        <span class="step-time">${new Date(c.createdAt).toLocaleString('ko-KR')}</span>
+                    </div>
+                    <div class="step-body">${markdownToHtml(body)}</div>
+                </div>`;
+            });
+
+            if (comments.length === 0) {
+                html += '<p style="color:#64748b">No agent steps recorded yet.</p>';
+            }
+
+            document.getElementById('pipelineDetailBody').innerHTML = html;
+        }
+
+        function markdownToHtml(md) {
+            return md
+                .replace(/```json\n([\s\S]*?)```/g, '<pre>$1</pre>')
+                .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`(.*?)`/g, '<code style="background:#334155;padding:1px 4px;border-radius:3px">$1</code>')
+                .replace(/^## (.*)$/gm, '<div style="font-size:14px;font-weight:600;margin-bottom:4px">$1</div>')
+                .replace(/^### (.*)$/gm, '<div style="font-size:13px;font-weight:600;margin:8px 0 4px">$1</div>')
+                .replace(/\n/g, '<br>');
+        }
+
+        // --- Questions ---
+        async function fetchQuestions() {
+            try {
+                const res = await fetch(`${API}/api/questions`);
+                const questions = await res.json();
+                document.getElementById('questionsList').innerHTML = questions.map(q =>
+                    `<div class="question-card">
+                        <div class="q-meta">#${q.id} | ${q.topic} | ${q.question_type} | ${q.created_at}</div>
+                        <div class="q-text">${q.question_text}</div>
+                    </div>`
+                ).join('') || '<p style="color:#64748b">No questions yet</p>';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // --- Logs ---
+        async function fetchLogs() {
+            try {
+                const [agentRes, deliveryRes] = await Promise.all([
+                    fetch(`${API}/api/agent-logs`),
+                    fetch(`${API}/api/delivery-logs`),
+                ]);
+                const agentLogs = await agentRes.json();
+                const deliveryLogs = await deliveryRes.json();
+                renderAgentLogs(agentLogs);
+                renderDeliveryLogs(deliveryLogs);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderAgentLogs(logs) {
+            document.getElementById('agentLogs').innerHTML = logs.slice(0, 50).map(l =>
+                `<tr>
+                    <td>${l.created_at}</td>
+                    <td>${l.agent_name}</td>
+                    <td>${l.action}</td>
+                    <td><span class="badge-sm badge-${l.status}">${l.status}</span></td>
+                </tr>`
+            ).join('') || '<tr><td colspan="4" style="color:#64748b">No logs yet</td></tr>';
+        }
+
+        function renderDeliveryLogs(logs) {
+            document.getElementById('deliveryLogs').innerHTML = logs.slice(0, 20).map(l =>
+                `<tr>
+                    <td>${l.delivered_at}</td>
+                    <td>${l.question_id || '-'}</td>
+                    <td>${l.slack_channel}</td>
+                    <td><span class="badge-sm badge-${l.status}">${l.status}</span></td>
+                    <td>${l.error_message || '-'}</td>
+                </tr>`
+            ).join('') || '<tr><td colspan="5" style="color:#64748b">No deliveries yet</td></tr>';
+        }
+
+        // --- Trigger ---
+        async function triggerPipeline() {
+            const btn = document.getElementById('triggerBtn');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            try {
+                const res = await fetch(`${API}/api/trigger`, { method: 'POST' });
+                const data = await res.json();
+                const issueNum = data.issue_number ? ` (Issue #${data.issue_number})` : '';
+                alert(data.status === 'success'
+                    ? `Pipeline completed!${issueNum}`
+                    : `Pipeline: ${data.status}${issueNum}\n${data.error || ''}`);
+                fetchOverview();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Run Now';
+            }
+        }
+
+        // --- Init ---
+        fetchOverview();
+        setInterval(fetchOverview, 30000);
+    </script>
+</body>
+</html>
