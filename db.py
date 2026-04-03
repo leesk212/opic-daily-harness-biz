@@ -8,15 +8,23 @@ ARCHIVE_PATH = os.path.join(os.path.dirname(__file__), "data", "questions_archiv
 
 KST = timezone(timedelta(hours=9))
 
+DB_TIMEOUT = 30  # seconds - prevents "database is locked" with concurrent agents
+
 
 def _kst_now() -> str:
     """현재 KST 시각을 ISO 형식 문자열로 반환"""
     return datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _connect():
+    return aiosqlite.connect(DB_PATH, timeout=DB_TIMEOUT)
+
+
 async def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA busy_timeout=30000")
         await db.execute("""
             CREATE TABLE IF NOT EXISTS questions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +61,7 @@ async def init_db():
 
 
 async def log_agent(agent_name: str, action: str, status: str, detail: str = ""):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
         await db.execute(
             "INSERT INTO agent_log (agent_name, action, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
             (agent_name, action, status, detail, _kst_now()),
@@ -63,7 +71,7 @@ async def log_agent(agent_name: str, action: str, status: str, detail: str = "")
 
 async def save_question(topic, question_type, question_text, sample_answer="", key_expressions="", tip="", issue_number=None):
     created_at = _kst_now()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
         cursor = await db.execute(
             "INSERT INTO questions (topic, question_type, question_text, sample_answer, key_expressions, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             (topic, question_type, question_text, sample_answer, key_expressions, created_at),
@@ -101,7 +109,7 @@ def _append_to_archive(entry: dict):
 
 
 async def save_delivery(question_id, channel, status, error_message=""):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
         await db.execute(
             "INSERT INTO delivery_log (question_id, channel, status, error_message, delivered_at) VALUES (?, ?, ?, ?, ?)",
             (question_id, channel, status, error_message, _kst_now()),
@@ -110,7 +118,7 @@ async def save_delivery(question_id, channel, status, error_message=""):
 
 
 async def get_recent_topics(days=7):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT topic, question_type FROM questions WHERE created_at >= datetime('now', '+9 hours', ?)",
@@ -120,7 +128,7 @@ async def get_recent_topics(days=7):
 
 
 async def get_all_questions(limit=50):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT * FROM questions ORDER BY created_at DESC LIMIT ?", (limit,)
@@ -129,7 +137,7 @@ async def get_all_questions(limit=50):
 
 
 async def get_delivery_logs(limit=50):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT * FROM delivery_log ORDER BY delivered_at DESC LIMIT ?", (limit,)
@@ -138,7 +146,7 @@ async def get_delivery_logs(limit=50):
 
 
 async def get_agent_logs(limit=100):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT * FROM agent_log ORDER BY created_at DESC LIMIT ?", (limit,)
@@ -147,7 +155,7 @@ async def get_agent_logs(limit=100):
 
 
 async def get_stats():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with _connect() as db:
         total_q = await db.execute_fetchall("SELECT COUNT(*) FROM questions")
         total_d = await db.execute_fetchall(
             "SELECT COUNT(*) FROM delivery_log WHERE status='success'"

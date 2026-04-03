@@ -3,23 +3,8 @@
 import json
 import subprocess
 import traceback
-from config import OPIC_TARGET_LEVEL
+from config import OPIC_TARGET_LEVEL, load_qg_prompt
 from db import save_question, log_agent
-
-PROMPT_TEMPLATE = """당신은 OPIC {level} 등급 전문 출제위원입니다.
-
-주제: {topic}
-문제 유형: {question_type}
-
-규칙:
-1. 모든 문제는 영어로 출제합니다 (실제 OPIC 시험과 동일).
-2. {level} 등급에 맞는 난이도로 출제합니다.
-3. 자연스럽고 실제 시험에 나올 법한 문제를 만듭니다.
-4. 콤보 세트의 경우 3개의 연관 질문을 만듭니다.
-5. 롤플레이의 경우 구체적인 상황을 설정합니다.
-
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력:
-{{"question": "영어 질문 전문", "sample_answer": "AL등급 수준의 모범 답변 (영어, 200단어 이상)", "key_expressions": "답변에 활용하면 좋은 핵심 표현 5개 (쉼표 구분, 반드시 하나의 문자열)", "tip": "이 문제를 잘 답하기 위한 전략 팁 (한국어)"}}"""
 
 
 class QuestionGeneratorAgent:
@@ -40,7 +25,7 @@ class QuestionGeneratorAgent:
         await log_agent(self.name, "generate", "started", f"{topic} / {question_type}")
 
         try:
-            prompt = PROMPT_TEMPLATE.format(
+            prompt = load_qg_prompt().format(
                 level=OPIC_TARGET_LEVEL,
                 topic=topic,
                 question_type=question_type,

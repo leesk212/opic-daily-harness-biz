@@ -1,8 +1,8 @@
-"""Delivery Agent - KakaoTalk으로 OPIC 문제 전송 (kakaocli 사용)"""
+"""Delivery Agent - KakaoTalk으로 OPIC 문제 전송 (AppleScript UI 자동화)"""
 
 import subprocess
 import time
-from config import KAKAOCLI_PATH, load_kakao_recipients
+from config import KAKAO_SEND_SCRIPT, load_kakao_recipients
 from db import save_delivery, log_agent
 
 
@@ -10,7 +10,7 @@ class DeliveryAgent:
     name = "Delivery"
 
     def _format_messages(self, question_data: dict) -> list:
-        """메시지를 2개로 분할: 문제 + 답안 (카카오톡 UI 자동화 안정성)"""
+        """메시지를 2개로 분할: 문제 + 답안"""
         q = question_data
 
         msg1 = "\n".join([
@@ -45,27 +45,36 @@ class DeliveryAgent:
 
         return [msg1, msg2]
 
-    def _send_kakaotalk(self, recipient: dict, message: str) -> None:
-        if recipient.get("self"):
-            cmd = [KAKAOCLI_PATH, "send", "--me", "_", message]
-        else:
-            cmd = [KAKAOCLI_PATH, "send", recipient["name"], message]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    def _send_kakaotalk(self, row: int, message: str) -> None:
+        result = subprocess.run(
+            ["osascript", KAKAO_SEND_SCRIPT, str(row), message],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
         if result.returncode != 0:
-            raise RuntimeError(f"kakaocli failed ({recipient['name']}): {result.stderr or result.stdout}")
+            raise RuntimeError(f"AppleScript failed: {result.stderr.strip()}")
 
     async def send(self, question_data: dict) -> dict:
         """전송 후 수신자별 결과를 dict로 반환."""
         await log_agent(self.name, "send", "started", f"question_id={question_data.get('id')}")
 
+        if not question_data.get('question') or question_data.get('question') == 'N/A':
+            await log_agent(self.name, "send", "skipped", "no question data")
+            return {"delivered": False, "recipients": [{"recipient": "all", "status": "skipped", "error": "no question data"}]}
+
         results = []
         all_ok = True
         for recipient in load_kakao_recipients():
             channel = f"kakaotalk:{recipient['name']}"
+            row = recipient.get("row")
+            if not row:
+                results.append({"recipient": recipient["name"], "status": "skipped", "error": "no row number"})
+                continue
             try:
                 messages = self._format_messages(question_data)
                 for msg in messages:
-                    self._send_kakaotalk(recipient, msg)
+                    self._send_kakaotalk(row, msg)
                     time.sleep(2)
 
                 await save_delivery(

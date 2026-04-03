@@ -113,7 +113,6 @@ def get_agent_data_from_comments(issue_number, agent_name):
             if f"Agent: `{agent_name}`" in body and "success" in body:
                 if "```json" in body:
                     json_str = body.split("```json")[1].split("```")[0].strip()
-                    json_str = json_str.replace("\\n", "\n")
                     return json.loads(json_str)
         return {}
     except Exception:

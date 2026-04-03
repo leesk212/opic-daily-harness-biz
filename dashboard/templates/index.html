@@ -450,7 +450,7 @@
             </div>
 
             <!-- KakaoTalk Recipients -->
-            <div class="panel" style="max-width:600px">
+            <div class="panel" style="max-width:600px;margin-bottom:24px">
                 <div class="panel-header">
                     KakaoTalk Recipients
                     <button class="btn btn-sm" onclick="addRecipient()">+ Add</button>
@@ -460,6 +460,22 @@
                     <div style="margin-top:16px;display:flex;gap:8px">
                         <button class="btn" onclick="saveRecipients()">Save</button>
                         <span id="recipientsSaveStatus" style="font-size:13px;color:#64748b;line-height:36px"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QG Prompt -->
+            <div class="panel">
+                <div class="panel-header">
+                    QuestionGenerator Prompt
+                    <span style="font-size:11px;color:#64748b">placeholders: {level}, {topic}, {question_type}</span>
+                </div>
+                <div class="panel-body">
+                    <textarea id="qgPromptText" style="width:100%;min-height:300px;background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:12px;font-family:monospace;font-size:13px;line-height:1.5;resize:vertical"></textarea>
+                    <div style="margin-top:16px;display:flex;gap:8px">
+                        <button class="btn" onclick="saveQgPrompt()">Save</button>
+                        <button class="btn" style="background:#475569" onclick="fetchQgPrompt()">Reset</button>
+                        <span id="qgPromptSaveStatus" style="font-size:13px;color:#64748b;line-height:36px"></span>
                     </div>
                 </div>
             </div>
@@ -575,7 +591,7 @@
             if (name === 'pipelines') fetchPipelines();
             if (name === 'questions') fetchQuestions();
             if (name === 'logs') fetchLogs();
-            if (name === 'settings') { fetchRecipients(); fetchTopics(); }
+            if (name === 'settings') { fetchRecipients(); fetchTopics(); fetchQgPrompt(); }
         }
 
         // --- Overview ---
@@ -1130,6 +1146,8 @@
                 <div class="recipient-row" data-idx="${i}">
                     <input type="text" value="${r.name}" onchange="updateRecipient(${i},'name',this.value)"
                            placeholder="Chat name" ${r.self ? 'disabled' : ''}>
+                    <input type="number" value="${r.row || ''}" onchange="updateRecipient(${i},'row',parseInt(this.value))"
+                           placeholder="Row#" style="width:60px;background:#1e293b;border:1px solid #475569;color:#f1f5f9;padding:6px;border-radius:6px;font-size:13px">
                     <label><input type="checkbox" ${r.self ? 'checked' : ''} onchange="updateRecipient(${i},'self',this.checked)"> Self</label>
                     <button class="btn-del" onclick="removeRecipient(${i})">X</button>
                 </div>
@@ -1143,7 +1161,7 @@
         }
 
         function addRecipient() {
-            _recipients.push({name: '', self: false});
+            _recipients.push({name: '', self: false, row: _recipients.length + 1});
             renderRecipients();
         }
 
@@ -1165,6 +1183,39 @@
                 if (data.status === 'ok') {
                     _recipients = data.recipients;
                     renderRecipients();
+                    status.textContent = 'Saved!';
+                    status.style.color = '#22c55e';
+                } else {
+                    status.textContent = data.message;
+                    status.style.color = '#ef4444';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.style.color = '#ef4444';
+            }
+            setTimeout(() => { status.textContent = ''; }, 3000);
+        }
+
+        // --- QG Prompt ---
+        async function fetchQgPrompt() {
+            try {
+                const res = await fetch(`${API}/api/qg-prompt`);
+                const data = await res.json();
+                document.getElementById('qgPromptText').value = data.prompt;
+            } catch (e) { console.error(e); }
+        }
+
+        async function saveQgPrompt() {
+            const status = document.getElementById('qgPromptSaveStatus');
+            const prompt = document.getElementById('qgPromptText').value;
+            try {
+                const res = await fetch(`${API}/api/qg-prompt`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prompt}),
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
                     status.textContent = 'Saved!';
                     status.style.color = '#22c55e';
                 } else {

@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from db import init_db, get_all_questions, get_delivery_logs, get_agent_logs, get_stats
 from harness import GitHubHarness
-from config import load_kakao_recipients, save_kakao_recipients, load_selected_topics, save_selected_topics, OPIC_TOPICS
+from config import load_kakao_recipients, save_kakao_recipients, load_selected_topics, save_selected_topics, OPIC_TOPICS, load_qg_prompt, save_qg_prompt
 
 app = FastAPI(title="OPIC Agent Dashboard")
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
@@ -178,3 +178,20 @@ async def api_set_recipients(request: Request):
             return {"status": "error", "message": "each recipient needs 'name' and 'self' fields"}
     save_kakao_recipients(recipients)
     return {"status": "ok", "recipients": recipients}
+
+
+@app.get("/api/qg-prompt")
+async def api_get_qg_prompt():
+    return {"prompt": load_qg_prompt()}
+
+
+@app.put("/api/qg-prompt")
+async def api_set_qg_prompt(request: Request):
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    if not prompt.strip():
+        return {"status": "error", "message": "prompt cannot be empty"}
+    if "{topic}" not in prompt or "{question_type}" not in prompt or "{level}" not in prompt:
+        return {"status": "error", "message": "prompt must contain {topic}, {question_type}, {level} placeholders"}
+    save_qg_prompt(prompt)
+    return {"status": "ok"}
