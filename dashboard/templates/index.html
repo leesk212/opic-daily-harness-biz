@@ -169,21 +169,28 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>OPIC Agent Dashboard</h1>
+    <!-- HEADER: changes based on mode -->
+    <div class="header" id="mainHeader">
+        <h1 id="headerTitle">OPIC Daily Practice</h1>
         <div style="display: flex; gap: 12px; align-items: center;">
             <span class="refresh-note" id="lastUpdate"></span>
-            <a class="gh-link" href="https://github.com/leesk212/opic-daily-harness/issues" target="_blank">GitHub Issues</a>
             <span class="badge">AL Level</span>
-            <button class="btn" onclick="triggerPipeline()" id="triggerBtn">Run Now</button>
+            <button class="btn btn-sm" id="modeToggle" onclick="toggleMode()">Admin</button>
         </div>
     </div>
 
     <div class="container">
-        <!-- Tabs -->
-        <div class="tabs">
+        <!-- Admin-only header bar -->
+        <div id="adminBar" style="display:none; margin-bottom:16px; display:flex; gap:8px; align-items:center;">
+            <a class="gh-link" href="https://github.com/leesk212/opic-daily-harness/issues" target="_blank">GitHub Issues</a>
+            <a class="gh-link" href="https://cloud.langfuse.com" target="_blank">Langfuse</a>
+            <button class="btn btn-sm" onclick="triggerPipeline()" id="triggerBtn" style="margin-left:auto">Run Now</button>
+        </div>
+
+        <!-- Admin Tabs (hidden in questions mode) -->
+        <div class="tabs" id="adminTabs" style="display:none">
             <button class="tab active" onclick="switchTab('overview')">Overview</button>
-            <button class="tab" onclick="switchTab('pipelines')">Pipelines (GitHub Issues)</button>
+            <button class="tab" onclick="switchTab('pipelines')">Pipelines</button>
             <button class="tab" onclick="switchTab('questions')">Questions</button>
             <button class="tab" onclick="switchTab('logs')">Agent Logs</button>
         </div>
@@ -381,11 +388,94 @@
                 </div>
             </div>
         </div>
+
+        <!-- ===== QUESTIONS VIEW (default, non-admin) ===== -->
+        <div id="questionsView" style="display:block">
+            <div style="text-align:center;margin-bottom:24px">
+                <h2 style="font-size:20px;color:#f1f5f9;margin-bottom:4px">Daily OPIC Questions</h2>
+                <p style="font-size:13px;color:#64748b">AI Agent가 매일 생성하는 AL급 연습 문제</p>
+            </div>
+            <div id="questionsViewList"><p style="color:#64748b;text-align:center">Loading...</p></div>
+        </div>
     </div>
 
     <script>
         const API = '';
         const GH_REPO = 'leesk212/opic-daily-harness';
+
+        // --- Mode (questions vs admin) ---
+        let isAdmin = window.location.search.includes('admin');
+
+        function applyMode() {
+            const adminEls = ['adminBar', 'adminTabs', 'tab-overview', 'tab-pipelines', 'tab-questions', 'tab-logs'];
+            const qView = document.getElementById('questionsView');
+
+            if (isAdmin) {
+                document.getElementById('headerTitle').textContent = 'OPIC Agent Dashboard';
+                document.getElementById('modeToggle').textContent = 'Questions';
+                document.getElementById('adminBar').style.display = 'flex';
+                document.getElementById('adminTabs').style.display = 'flex';
+                document.getElementById('tab-overview').classList.add('active');
+                document.getElementById('tab-overview').style.display = 'block';
+                qView.style.display = 'none';
+                fetchOverview();
+                fetchHarnessStatus();
+            } else {
+                document.getElementById('headerTitle').textContent = 'OPIC Daily Practice';
+                document.getElementById('modeToggle').textContent = 'Admin';
+                document.getElementById('adminBar').style.display = 'none';
+                document.getElementById('adminTabs').style.display = 'none';
+                // hide all admin tabs
+                ['tab-overview','tab-pipelines','tab-questions','tab-logs'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) { el.style.display = 'none'; el.classList.remove('active'); }
+                });
+                qView.style.display = 'block';
+                fetchQuestionsView();
+            }
+        }
+
+        function toggleMode() {
+            isAdmin = !isAdmin;
+            const url = new URL(window.location);
+            if (isAdmin) url.searchParams.set('admin', '1');
+            else url.searchParams.delete('admin');
+            window.history.replaceState({}, '', url);
+            applyMode();
+        }
+
+        async function fetchQuestionsView() {
+            try {
+                const res = await fetch(`${API}/api/questions`);
+                const questions = await res.json();
+                document.getElementById('questionsViewList').innerHTML = questions.map(q => {
+                    const exprs = (q.key_expressions || '').split(',').map(e => e.trim()).filter(Boolean);
+                    const exprHtml = exprs.map(e => `<span style="background:#1e3a5f;color:#93c5fd;padding:3px 10px;border-radius:6px;font-size:12px;margin:2px;display:inline-block">${e}</span>`).join(' ');
+                    return `<div class="question-card" style="padding:24px;margin-bottom:20px">
+                        <div class="q-meta" style="margin-bottom:14px">
+                            <span class="badge-sm" style="background:#3b82f622;color:#3b82f6;border:1px solid #3b82f644">#${q.id}</span>
+                            <span class="badge-sm" style="background:#8b5cf622;color:#8b5cf6;border:1px solid #8b5cf644">${q.topic}</span>
+                            <span class="badge-sm" style="background:#eab30822;color:#eab308;border:1px solid #eab30844">${q.question_type}</span>
+                            <span style="font-size:11px;color:#64748b;margin-left:8px">${q.created_at}</span>
+                        </div>
+                        <div style="font-size:16px;color:#f1f5f9;line-height:1.7;margin-bottom:18px;padding:16px;background:#1e293b;border-radius:10px;border-left:4px solid #3b82f6">
+                            ${q.question_text.replace(/\\n/g, '<br>')}
+                        </div>
+                        <div style="margin-bottom:14px">
+                            <div style="font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px">Key Expressions</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:4px">${exprHtml || '<span style="color:#64748b;font-size:12px">-</span>'}</div>
+                        </div>
+                        <details style="margin-top:14px">
+                            <summary style="cursor:pointer;font-size:14px;color:#94a3b8;font-weight:600;padding:8px 0">Sample Answer (click to reveal)</summary>
+                            <div style="margin-top:10px;padding:16px;background:#1e293b;border-radius:10px;font-size:14px;color:#cbd5e1;line-height:1.8;white-space:pre-wrap">${q.sample_answer || 'N/A'}</div>
+                        </details>
+                    </div>`;
+                }).join('') || '<p style="color:#64748b;text-align:center">No questions generated yet</p>';
+                document.getElementById('lastUpdate').textContent = `Updated: ${new Date().toLocaleTimeString('ko-KR')}`;
+            } catch (e) {
+                console.error(e);
+            }
+        }
 
         // --- Tabs ---
         function switchTab(name) {
@@ -766,10 +856,17 @@
         }
 
         // --- Init ---
-        fetchOverview();
-        fetchHarnessStatus();
-        setInterval(fetchOverview, 30000);
-        setInterval(fetchHarnessStatus, 3000);
+        applyMode();
+        setInterval(() => {
+            if (isAdmin) { fetchOverview(); fetchHarnessStatus(); }
+            else { fetchQuestionsView(); }
+        }, isAdmin ? 3000 : 30000);
+        if (isAdmin) {
+            setInterval(fetchHarnessStatus, 3000);
+            setInterval(fetchOverview, 30000);
+        } else {
+            setInterval(fetchQuestionsView, 30000);
+        }
     </script>
 </body>
 </html>

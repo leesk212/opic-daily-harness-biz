@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import traceback
 from config import OPIC_TARGET_LEVEL
 from db import save_question, log_agent
 
@@ -18,7 +19,7 @@ PROMPT_TEMPLATE = """당신은 OPIC {level} 등급 전문 출제위원입니다.
 5. 롤플레이의 경우 구체적인 상황을 설정합니다.
 
 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력:
-{{"question": "영어 질문 전문", "sample_answer": "AL등급 수준의 모범 답변 (영어, 200단어 이상)", "key_expressions": "답변에 활용하면 좋은 핵심 표현 5개 (쉼표 구분)", "tip": "이 문제를 잘 답하기 위한 전략 팁 (한국어)"}}"""
+{{"question": "영어 질문 전문", "sample_answer": "AL등급 수준의 모범 답변 (영어, 200단어 이상)", "key_expressions": "답변에 활용하면 좋은 핵심 표현 5개 (쉼표 구분, 반드시 하나의 문자열)", "tip": "이 문제를 잘 답하기 위한 전략 팁 (한국어)"}}"""
 
 
 class QuestionGeneratorAgent:
@@ -34,7 +35,6 @@ class QuestionGeneratorAgent:
                 question_type=question_type,
             )
 
-            # Claude Code CLI 호출
             result = subprocess.run(
                 ["claude", "-p", prompt, "--output-format", "text"],
                 capture_output=True,
@@ -43,7 +43,7 @@ class QuestionGeneratorAgent:
             )
 
             if result.returncode != 0:
-                raise RuntimeError(f"claude CLI error: {result.stderr}")
+                raise RuntimeError(f"claude CLI error: {result.stderr[:500]}")
 
             response_text = result.stdout.strip()
 
@@ -55,12 +55,18 @@ class QuestionGeneratorAgent:
 
             data = json.loads(response_text.strip())
 
+            # key_expressions가 배열이면 문자열로 변환
+            ke = data.get("key_expressions", "")
+            if isinstance(ke, list):
+                ke = ", ".join(str(item) for item in ke)
+            data["key_expressions"] = ke
+
             question_id = await save_question(
                 topic=topic,
                 question_type=question_type,
                 question_text=data["question"],
                 sample_answer=data.get("sample_answer", ""),
-                key_expressions=data.get("key_expressions", ""),
+                key_expressions=ke,
             )
 
             data["id"] = question_id
@@ -71,5 +77,10 @@ class QuestionGeneratorAgent:
             return data
 
         except Exception as e:
-            await log_agent(self.name, "generate", "failed", str(e))
+            tb = traceback.format_exc()
+            error_detail = f"{str(e)}\n{tb}"
+            try:
+                await log_agent(self.name, "generate", "failed", error_detail[:1000])
+            except Exception:
+                pass  # DB lock 등 2차 에러 무시
             raise
