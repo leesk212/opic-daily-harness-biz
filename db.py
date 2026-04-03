@@ -1,7 +1,10 @@
 import aiosqlite
+import json
 import os
 from datetime import datetime, timezone, timedelta
 from config import DB_PATH
+
+ARCHIVE_PATH = os.path.join(os.path.dirname(__file__), "data", "questions_archive.json")
 
 KST = timezone(timedelta(hours=9))
 
@@ -52,27 +55,56 @@ async def init_db():
 async def log_agent(agent_name: str, action: str, status: str, detail: str = ""):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT INTO agent_log (agent_name, action, status, detail) VALUES (?, ?, ?, ?)",
-            (agent_name, action, status, detail),
+            "INSERT INTO agent_log (agent_name, action, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+            (agent_name, action, status, detail, _kst_now()),
         )
         await db.commit()
 
 
-async def save_question(topic, question_type, question_text, sample_answer="", key_expressions=""):
+async def save_question(topic, question_type, question_text, sample_answer="", key_expressions="", tip="", issue_number=None):
+    created_at = _kst_now()
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO questions (topic, question_type, question_text, sample_answer, key_expressions) VALUES (?, ?, ?, ?, ?)",
-            (topic, question_type, question_text, sample_answer, key_expressions),
+            "INSERT INTO questions (topic, question_type, question_text, sample_answer, key_expressions, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (topic, question_type, question_text, sample_answer, key_expressions, created_at),
         )
         await db.commit()
-        return cursor.lastrowid
+        question_id = cursor.lastrowid
+
+    # Git-tracked archive에 누적 저장
+    _append_to_archive({
+        "id": question_id,
+        "issue_number": issue_number,
+        "topic": topic,
+        "question_type": question_type,
+        "question": question_text,
+        "key_expressions": key_expressions,
+        "tip": tip,
+        "sample_answer": sample_answer,
+        "created_at": created_at,
+    })
+    return question_id
+
+
+def _append_to_archive(entry: dict):
+    """질문을 git-tracked JSON 파일에 누적 저장"""
+    archive = []
+    if os.path.exists(ARCHIVE_PATH):
+        try:
+            with open(ARCHIVE_PATH, "r", encoding="utf-8") as f:
+                archive = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            archive = []
+    archive.append(entry)
+    with open(ARCHIVE_PATH, "w", encoding="utf-8") as f:
+        json.dump(archive, f, ensure_ascii=False, indent=2)
 
 
 async def save_delivery(question_id, slack_channel, status, error_message=""):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT INTO delivery_log (question_id, slack_channel, status, error_message) VALUES (?, ?, ?, ?)",
-            (question_id, slack_channel, status, error_message),
+            "INSERT INTO delivery_log (question_id, slack_channel, status, error_message, delivered_at) VALUES (?, ?, ?, ?, ?)",
+            (question_id, slack_channel, status, error_message, _kst_now()),
         )
         await db.commit()
 

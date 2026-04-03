@@ -243,13 +243,14 @@ async def question_generator_worker(poll_seconds=15):
                     {"topic": topic, "type": q_type},
                 )
 
-                question_data = await agent.generate(topic=topic, question_type=q_type)
+                question_data = await agent.generate(topic=topic, question_type=q_type, issue_number=issue_num)
 
                 harness_data = {
                     "question_id": question_data.get("id"),
                     "question": question_data.get("question", ""),
                     "key_expressions": question_data.get("key_expressions", ""),
                     "tip": question_data.get("tip", ""),
+                    "sample_answer": question_data.get("sample_answer", ""),
                 }
                 harness.post_agent_status(
                     issue_num, "QuestionGenerator", "generate", "success", harness_data,

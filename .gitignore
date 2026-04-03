@@ -1,5 +1,6 @@
 .env
 data/
+!data/questions_archive.json
 __pycache__/
 *.pyc
 .DS_Store

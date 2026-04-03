@@ -36,7 +36,7 @@ class QuestionGeneratorAgent:
             except Exception:
                 pass
 
-    async def generate(self, topic: str, question_type: str) -> dict:
+    async def generate(self, topic: str, question_type: str, issue_number: int = None) -> dict:
         await log_agent(self.name, "generate", "started", f"{topic} / {question_type}")
 
         try:
@@ -86,6 +86,8 @@ class QuestionGeneratorAgent:
                 question_text=data["question"],
                 sample_answer=data.get("sample_answer", ""),
                 key_expressions=ke,
+                tip=data.get("tip", ""),
+                issue_number=issue_number,
             )
 
             data["id"] = question_id
