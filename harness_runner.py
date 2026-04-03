@@ -8,9 +8,10 @@ Orchestrator가 주기적으로 파이프라인을 트리거하고,
 
 import asyncio
 import json
-import time
+import queue
 import signal
 import sys
+import threading
 from datetime import datetime, timezone, timedelta
 
 KST = timezone(timedelta(hours=9))
@@ -32,30 +33,35 @@ AGENT_STATUS = {
 }
 
 harness = GitHubHarness()
-shutdown_event = None  # run_harness()에서 초기화
-_event_loop = None  # harness가 돌고 있는 이벤트 루프
+
+# 스레드 안전한 이벤트/큐 (threading 기반)
+_shutdown = threading.Event()
+_trigger_q = queue.Queue()
 
 # Issue별 Langfuse trace_id 관리
-pipeline_trace_ids = {}  # {issue_number: trace_id}
-
-# Trigger queue for orchestrator (scheduler/dashboard puts items here)
-_trigger_queue: asyncio.Queue = None  # initialized in run_harness()
+pipeline_trace_ids = {}
 
 
 def trigger_pipeline():
     """외부(스케줄러/대시보드)에서 파이프라인 트리거. 스레드 안전."""
-    if _trigger_queue is not None and _event_loop is not None:
-        _event_loop.call_soon_threadsafe(_trigger_queue.put_nowait, "trigger")
+    if AGENT_STATUS["harness"]["state"] == "running":
+        _trigger_q.put("trigger")
         return True
     return False
 
 
 def shutdown_harness():
     """외부에서 harness 중지. 스레드 안전."""
-    if shutdown_event is not None and _event_loop is not None:
-        _event_loop.call_soon_threadsafe(shutdown_event.set)
-        # 상태 즉시 업데이트 (UI 반영)
-        AGENT_STATUS["harness"]["state"] = "stopping"
+    if AGENT_STATUS["harness"]["state"] in ("running", "stopping"):
+        _shutdown.set()
+        # 상태 즉시 반영
+        AGENT_STATUS["harness"]["state"] = "stopped"
+        for agent in ["orchestrator", "content_manager", "question_generator", "delivery"]:
+            AGENT_STATUS[agent]["state"] = "stopped"
+            AGENT_STATUS[agent]["detail"] = "Shutdown requested"
+        # QG의 실행 중인 claude 프로세스 강제 종료
+        if _qg_agent is not None:
+            _qg_agent.kill_current()
         return True
     return False
 
@@ -117,28 +123,14 @@ def get_agent_data_from_comments(issue_number, agent_name):
 # === Agent Workers ===
 
 async def orchestrator_worker():
-    """Trigger-based orchestrator: waits for items in _trigger_queue."""
-    while not shutdown_event.is_set():
+    """Trigger-based orchestrator: polls thread-safe queue."""
+    while not _shutdown.is_set():
         update_status("orchestrator", "waiting", "Waiting for trigger (schedule or manual)...")
+        # Poll the thread-safe queue
         try:
-            # Wait for a trigger or shutdown
-            done, pending = await asyncio.wait(
-                [
-                    asyncio.ensure_future(_trigger_queue.get()),
-                    asyncio.ensure_future(shutdown_event.wait()),
-                ],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            # Cancel pending futures
-            for fut in pending:
-                fut.cancel()
-            # Check if shutdown was triggered
-            if shutdown_event.is_set():
-                break
-        except Exception:
-            if shutdown_event.is_set():
-                break
-            await asyncio.sleep(1)
+            _trigger_q.get_nowait()
+        except queue.Empty:
+            await asyncio.sleep(2)
             continue
 
         try:
@@ -172,7 +164,7 @@ async def orchestrator_worker():
 async def content_manager_worker(poll_seconds=10):
     agent = ContentManagerAgent()
 
-    while not shutdown_event.is_set():
+    while not _shutdown.is_set():
         try:
             update_status("content_manager", "polling", "Scanning for new pipeline issues...")
             issues = find_pending_issues()
@@ -202,17 +194,20 @@ async def content_manager_worker(poll_seconds=10):
             update_status("content_manager", "error", str(e))
             await log_agent("ContentManager", "poll", "failed", str(e))
 
-        try:
-            await asyncio.wait_for(shutdown_event.wait(), timeout=poll_seconds)
-            break
-        except asyncio.TimeoutError:
-            pass
+        for _ in range(poll_seconds):
+            if _shutdown.is_set():
+                break
+            await asyncio.sleep(1)
 
+
+_qg_agent = None  # QG agent 참조 (shutdown 시 프로세스 kill용)
 
 async def question_generator_worker(poll_seconds=15):
+    global _qg_agent
     agent = QuestionGeneratorAgent()
+    _qg_agent = agent
 
-    while not shutdown_event.is_set():
+    while not _shutdown.is_set():
         try:
             update_status("question_generator", "polling", "Waiting for ContentManager...")
             issues = find_pending_issues()
@@ -230,6 +225,9 @@ async def question_generator_worker(poll_seconds=15):
                 selection = get_agent_data_from_comments(issue_num, "ContentManager")
                 topic = selection.get("topic", "자기소개")
                 q_type = selection.get("question_type", "묘사 (Description)")
+
+                if _shutdown.is_set():
+                    break
 
                 # Langfuse: generation span (LLM 호출 추적)
                 trace_id = get_trace_id(issue_num)
@@ -266,17 +264,16 @@ async def question_generator_worker(poll_seconds=15):
             update_status("question_generator", "error", str(e))
             await log_agent("QuestionGenerator", "poll", "failed", str(e))
 
-        try:
-            await asyncio.wait_for(shutdown_event.wait(), timeout=poll_seconds)
-            break
-        except asyncio.TimeoutError:
-            pass
+        for _ in range(poll_seconds):
+            if _shutdown.is_set():
+                break
+            await asyncio.sleep(1)
 
 
 async def delivery_worker(poll_seconds=10):
     agent = DeliveryAgent()
 
-    while not shutdown_event.is_set():
+    while not _shutdown.is_set():
         try:
             update_status("delivery", "polling", "Waiting for QuestionGenerator...")
             issues = find_pending_issues()
@@ -334,18 +331,15 @@ async def delivery_worker(poll_seconds=10):
             update_status("delivery", "error", str(e))
             await log_agent("Delivery", "poll", "failed", str(e))
 
-        try:
-            await asyncio.wait_for(shutdown_event.wait(), timeout=poll_seconds)
-            break
-        except asyncio.TimeoutError:
-            pass
+        for _ in range(poll_seconds):
+            if _shutdown.is_set():
+                break
+            await asyncio.sleep(1)
 
 
 async def run_harness():
-    global shutdown_event, _trigger_queue, _event_loop
-    shutdown_event = asyncio.Event()
-    _trigger_queue = asyncio.Queue()
-    _event_loop = asyncio.get_event_loop()
+    _shutdown.clear()  # 재시작 시 리셋
+    # _trigger_q는 모듈 레벨에서 이미 생성됨 (thread-safe queue.Queue)
     await init_db()
 
     AGENT_STATUS["harness"]["state"] = "running"
@@ -369,7 +363,7 @@ async def run_harness():
 
     def handle_signal(*_):
         print("\nShutting down harness...")
-        shutdown_event.set()
+        _shutdown.set()
 
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
@@ -380,9 +374,12 @@ async def run_harness():
     for agent in ["orchestrator", "content_manager", "question_generator", "delivery"]:
         AGENT_STATUS[agent]["state"] = "stopped"
         AGENT_STATUS[agent]["detail"] = ""
-    _event_loop = None
-    _trigger_queue = None
-    shutdown_event = None
+    # queue 비우기 (잔여 trigger 제거)
+    while not _trigger_q.empty():
+        try:
+            _trigger_q.get_nowait()
+        except queue.Empty:
+            break
     print("Harness stopped.")
 
 

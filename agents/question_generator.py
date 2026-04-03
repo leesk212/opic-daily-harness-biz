@@ -25,6 +25,17 @@ PROMPT_TEMPLATE = """당신은 OPIC {level} 등급 전문 출제위원입니다.
 class QuestionGeneratorAgent:
     name = "QuestionGenerator"
 
+    def __init__(self):
+        self._current_proc = None
+
+    def kill_current(self):
+        """실행 중인 claude 프로세스 강제 종료"""
+        if self._current_proc:
+            try:
+                self._current_proc.kill()
+            except Exception:
+                pass
+
     async def generate(self, topic: str, question_type: str) -> dict:
         await log_agent(self.name, "generate", "started", f"{topic} / {question_type}")
 
@@ -35,17 +46,25 @@ class QuestionGeneratorAgent:
                 question_type=question_type,
             )
 
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 ["claude", "-p", prompt, "--output-format", "text"],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=120,
             )
+            self._current_proc = proc
+            try:
+                stdout, stderr = proc.communicate(timeout=120)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                raise RuntimeError("claude CLI timed out")
+            finally:
+                self._current_proc = None
 
-            if result.returncode != 0:
-                raise RuntimeError(f"claude CLI error: {result.stderr[:500]}")
+            if proc.returncode != 0:
+                raise RuntimeError(f"claude CLI error: {(stderr or '')[:500]}")
 
-            response_text = result.stdout.strip()
+            response_text = stdout.strip()
 
             # JSON 파싱
             if "```json" in response_text:
