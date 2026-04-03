@@ -8,6 +8,7 @@
 import json
 import subprocess
 from datetime import datetime
+from typing import Optional, List, Dict
 
 
 REPO = "leesk212/opic-daily-harness"
@@ -24,7 +25,7 @@ LABELS = {
 }
 
 
-def _gh(args: list[str], input_text: str | None = None) -> str:
+def _gh(args: List[str], input_text: Optional[str] = None) -> str:
     """gh CLI 래퍼"""
     cmd = ["gh"] + args
     result = subprocess.run(
@@ -91,7 +92,7 @@ class GitHubHarness:
         issue_number = int(output.rstrip("/").split("/")[-1])
         return issue_number
 
-    def post_agent_status(self, issue_number: int, agent_name: str, action: str, status: str, data: dict | None = None):
+    def post_agent_status(self, issue_number: int, agent_name: str, action: str, status: str, data: Optional[Dict] = None):
         """Agent 실행 결과를 Issue 댓글로 기록"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         payload = {
@@ -141,11 +142,11 @@ class GitHubHarness:
         _gh(["issue", "edit", "--repo", self.repo, str(issue_number),
              "--add-label", label])
 
-        state_reason = "completed" if status == "success" else "not_planned"
+        state_reason = "completed" if status == "success" else "not planned"
         _gh(["issue", "close", "--repo", self.repo, str(issue_number),
              "--reason", state_reason])
 
-    def get_pipeline_issues(self, state: str = "all", limit: int = 20) -> list[dict]:
+    def get_pipeline_issues(self, state: str = "all", limit: int = 20) -> List[Dict]:
         """파이프라인 Issue 목록 조회"""
         output = _gh([
             "issue", "list",
@@ -157,7 +158,7 @@ class GitHubHarness:
         ])
         return json.loads(output) if output else []
 
-    def get_issue_comments(self, issue_number: int) -> list[dict]:
+    def get_issue_comments(self, issue_number: int) -> List[Dict]:
         """특정 Issue의 댓글(Agent 상태) 조회"""
         output = _gh([
             "issue", "view",

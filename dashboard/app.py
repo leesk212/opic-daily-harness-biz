@@ -11,11 +11,10 @@ from fastapi.templating import Jinja2Templates
 
 from db import init_db, get_all_questions, get_delivery_logs, get_agent_logs, get_stats
 from harness import GitHubHarness
-from agents.orchestrator import OrchestratorAgent
 
 app = FastAPI(title="OPIC Agent Dashboard")
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
-harness = GitHubHarness()
+gh_harness = GitHubHarness()
 
 
 @app.on_event("startup")
@@ -53,18 +52,19 @@ async def api_agent_logs():
 
 @app.get("/api/pipelines")
 async def api_pipelines():
-    """GitHub Issues 기반 파이프라인 목록"""
-    return harness.get_pipeline_issues(state="all", limit=20)
+    return gh_harness.get_pipeline_issues(state="all", limit=20)
 
 
 @app.get("/api/pipelines/{issue_number}")
 async def api_pipeline_detail(issue_number: int):
-    """특정 파이프라인 Issue 상세 + 댓글(Agent 상태)"""
-    return harness.get_issue_detail(issue_number)
+    return gh_harness.get_issue_detail(issue_number)
 
 
-@app.post("/api/trigger")
-async def api_trigger():
-    orchestrator = OrchestratorAgent()
-    result = await orchestrator.run_pipeline()
-    return result
+@app.get("/api/harness-status")
+async def api_harness_status():
+    """실시간 Agent 상태 (harness_runner에서 import)"""
+    try:
+        from harness_runner import AGENT_STATUS
+        return AGENT_STATUS
+    except Exception:
+        return {"harness": {"state": "not_running"}}

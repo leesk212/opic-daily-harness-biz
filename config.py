@@ -5,7 +5,7 @@ load_dotenv()
 
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+# Claude Code CLI is used for question generation (no API key needed)
 DAILY_SEND_HOUR = int(os.getenv("DAILY_SEND_HOUR", "8"))
 DAILY_SEND_MINUTE = int(os.getenv("DAILY_SEND_MINUTE", "0"))
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "8080"))

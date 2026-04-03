@@ -118,9 +118,45 @@
         .gh-link { color: #3b82f6; text-decoration: none; font-size: 12px; }
         .gh-link:hover { text-decoration: underline; }
 
+        /* Live Agent Status */
+        .live-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+        .live-card {
+            background: #1e293b; border-radius: 10px; padding: 16px; border: 2px solid #334155;
+            position: relative; overflow: hidden;
+        }
+        .live-card.state-running { border-color: #3b82f6; }
+        .live-card.state-polling { border-color: #8b5cf6; }
+        .live-card.state-done { border-color: #22c55e; }
+        .live-card.state-error { border-color: #ef4444; }
+        .live-card.state-sleeping { border-color: #475569; }
+        .live-card.state-idle { border-color: #334155; }
+        .live-card .agent-name { font-size: 13px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+        .live-card .agent-state { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+        .live-card .agent-detail { font-size: 11px; color: #94a3b8; line-height: 1.4; }
+        .live-card .agent-time { font-size: 10px; color: #64748b; margin-top: 4px; }
+        .live-card .pulse {
+            position: absolute; top: 12px; right: 12px; width: 8px; height: 8px; border-radius: 50%;
+        }
+        .pulse.on { background: #22c55e; animation: pulse-anim 2s infinite; }
+        .pulse.off { background: #475569; }
+        @keyframes pulse-anim {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+            50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+        }
+
+        .harness-banner {
+            background: linear-gradient(135deg, #1e3a5f, #1e293b); border-radius: 12px;
+            padding: 16px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;
+            border: 1px solid #334155;
+        }
+        .harness-banner .hb-left { display: flex; align-items: center; gap: 12px; }
+        .harness-banner .hb-state { font-size: 18px; font-weight: 700; }
+        .harness-banner .hb-meta { font-size: 12px; color: #94a3b8; }
+
         @media (max-width: 768px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .grid-2 { grid-template-columns: 1fr; }
+            .live-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -146,6 +182,50 @@
 
         <!-- Tab: Overview -->
         <div id="tab-overview" class="tab-content active">
+            <!-- Harness Banner -->
+            <div class="harness-banner" id="harnessBanner">
+                <div class="hb-left">
+                    <div class="pulse off" id="harnessPulse"></div>
+                    <div>
+                        <div class="hb-state" id="harnessState">Harness: checking...</div>
+                        <div class="hb-meta" id="harnessMeta"></div>
+                    </div>
+                </div>
+                <div class="hb-meta" id="harnessInfo"></div>
+            </div>
+
+            <!-- Live Agent Status -->
+            <div class="live-grid" id="liveAgents">
+                <div class="live-card state-idle" id="live-orchestrator">
+                    <div class="pulse off" id="pulse-orchestrator"></div>
+                    <div class="agent-name">Orchestrator</div>
+                    <div class="agent-state" id="state-orchestrator">-</div>
+                    <div class="agent-detail" id="detail-orchestrator">-</div>
+                    <div class="agent-time" id="time-orchestrator"></div>
+                </div>
+                <div class="live-card state-idle" id="live-content_manager">
+                    <div class="pulse off" id="pulse-content_manager"></div>
+                    <div class="agent-name">ContentManager</div>
+                    <div class="agent-state" id="state-content_manager">-</div>
+                    <div class="agent-detail" id="detail-content_manager">-</div>
+                    <div class="agent-time" id="time-content_manager"></div>
+                </div>
+                <div class="live-card state-idle" id="live-question_generator">
+                    <div class="pulse off" id="pulse-question_generator"></div>
+                    <div class="agent-name">QuestionGenerator</div>
+                    <div class="agent-state" id="state-question_generator">-</div>
+                    <div class="agent-detail" id="detail-question_generator">-</div>
+                    <div class="agent-time" id="time-question_generator"></div>
+                </div>
+                <div class="live-card state-idle" id="live-delivery">
+                    <div class="pulse off" id="pulse-delivery"></div>
+                    <div class="agent-name">Delivery</div>
+                    <div class="agent-state" id="state-delivery">-</div>
+                    <div class="agent-detail" id="detail-delivery">-</div>
+                    <div class="agent-time" id="time-delivery"></div>
+                </div>
+            </div>
+
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="label">Total Questions</div>
@@ -496,9 +576,58 @@
             }
         }
 
+        // --- Live Agent Status ---
+        const stateColors = {
+            running: '#3b82f6', polling: '#8b5cf6', done: '#22c55e',
+            error: '#ef4444', sleeping: '#475569', idle: '#64748b', waiting: '#eab308',
+        };
+
+        async function fetchHarnessStatus() {
+            try {
+                const res = await fetch(`${API}/api/harness-status`);
+                const data = await res.json();
+
+                // Harness banner
+                const h = data.harness || {};
+                const isRunning = h.state === 'running';
+                document.getElementById('harnessPulse').className = `pulse ${isRunning ? 'on' : 'off'}`;
+                document.getElementById('harnessState').textContent = `Harness: ${h.state || 'unknown'}`;
+                document.getElementById('harnessMeta').textContent = h.started_at
+                    ? `Started: ${new Date(h.started_at).toLocaleString('ko-KR')} | Runs: ${h.total_runs || 0}`
+                    : 'Not started';
+                document.getElementById('harnessInfo').textContent = h.loop_interval
+                    ? `Interval: ${h.loop_interval}s`
+                    : '';
+
+                // Agent cards
+                ['orchestrator', 'content_manager', 'question_generator', 'delivery'].forEach(name => {
+                    const agent = data[name];
+                    if (!agent) return;
+                    const card = document.getElementById(`live-${name}`);
+                    const state = agent.state || 'idle';
+
+                    card.className = `live-card state-${state}`;
+                    document.getElementById(`state-${name}`).textContent = state;
+                    document.getElementById(`state-${name}`).style.color = stateColors[state] || '#94a3b8';
+                    document.getElementById(`detail-${name}`).textContent = agent.detail || '-';
+                    document.getElementById(`time-${name}`).textContent = agent.last_run
+                        ? new Date(agent.last_run).toLocaleTimeString('ko-KR')
+                        : '';
+
+                    const isActive = ['running', 'polling'].includes(state);
+                    document.getElementById(`pulse-${name}`).className = `pulse ${isActive ? 'on' : 'off'}`;
+                });
+            } catch (e) {
+                document.getElementById('harnessState').textContent = 'Harness: not reachable';
+                document.getElementById('harnessPulse').className = 'pulse off';
+            }
+        }
+
         // --- Init ---
         fetchOverview();
+        fetchHarnessStatus();
         setInterval(fetchOverview, 30000);
+        setInterval(fetchHarnessStatus, 3000);  // 3초마다 실시간 상태 갱신
     </script>
 </body>
 </html>
