@@ -288,11 +288,14 @@
             </div>
         </div>
 
-        <!-- Tab: Questions -->
+        <!-- Tab: Questions (Daily OPIC) -->
         <div id="tab-questions" class="tab-content">
-            <div class="panel">
-                <div class="panel-header">Generated Questions</div>
-                <div class="panel-body" id="questionsList"><p style="color:#64748b">Loading...</p></div>
+            <div class="panel" style="margin-bottom:24px">
+                <div class="panel-header">
+                    Daily OPIC Questions (AL Level)
+                    <button class="btn btn-sm" onclick="fetchQuestions()">Refresh</button>
+                </div>
+                <div class="panel-body" style="max-height:none" id="questionsList"><p style="color:#64748b">Loading...</p></div>
             </div>
         </div>
 
@@ -505,12 +508,29 @@
             try {
                 const res = await fetch(`${API}/api/questions`);
                 const questions = await res.json();
-                document.getElementById('questionsList').innerHTML = questions.map(q =>
-                    `<div class="question-card">
-                        <div class="q-meta">#${q.id} | ${q.topic} | ${q.question_type} | ${q.created_at}</div>
-                        <div class="q-text">${q.question_text}</div>
-                    </div>`
-                ).join('') || '<p style="color:#64748b">No questions yet</p>';
+                document.getElementById('questionsList').innerHTML = questions.map(q => {
+                    const exprs = (q.key_expressions || '').split(',').map(e => e.trim()).filter(Boolean);
+                    const exprHtml = exprs.map(e => `<span style="background:#1e3a5f;color:#93c5fd;padding:2px 8px;border-radius:6px;font-size:12px;margin:2px">${e}</span>`).join(' ');
+                    return `<div class="question-card" style="padding:20px">
+                        <div class="q-meta" style="margin-bottom:12px">
+                            <span class="badge-sm" style="background:#3b82f622;color:#3b82f6;border:1px solid #3b82f644">#${q.id}</span>
+                            <span class="badge-sm" style="background:#8b5cf622;color:#8b5cf6;border:1px solid #8b5cf644">${q.topic}</span>
+                            <span class="badge-sm" style="background:#eab30822;color:#eab308;border:1px solid #eab30844">${q.question_type}</span>
+                            <span style="font-size:11px;color:#64748b;margin-left:8px">${q.created_at}</span>
+                        </div>
+                        <div style="font-size:15px;color:#f1f5f9;line-height:1.6;margin-bottom:16px;padding:12px;background:#1e293b;border-radius:8px;border-left:3px solid #3b82f6">
+                            ${q.question_text.replace(/\n/g, '<br>')}
+                        </div>
+                        <div style="margin-bottom:12px">
+                            <div style="font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px">Key Expressions</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:4px">${exprHtml || '<span style="color:#64748b;font-size:12px">-</span>'}</div>
+                        </div>
+                        <details style="margin-top:12px">
+                            <summary style="cursor:pointer;font-size:13px;color:#94a3b8;font-weight:600">Sample Answer (click to reveal)</summary>
+                            <div style="margin-top:8px;padding:12px;background:#1e293b;border-radius:8px;font-size:13px;color:#cbd5e1;line-height:1.7;white-space:pre-wrap">${q.sample_answer || 'N/A'}</div>
+                        </details>
+                    </div>`;
+                }).join('') || '<p style="color:#64748b">No questions generated yet</p>';
             } catch (e) {
                 console.error(e);
             }
