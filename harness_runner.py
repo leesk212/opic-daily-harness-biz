@@ -366,8 +366,11 @@ async def run_harness():
         print("\nShutting down harness...")
         _shutdown.set()
 
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
+    # signal은 메인 스레드에서만 등록 가능 (run.py에서 스레드로 실행 시 skip)
+    import threading as _th
+    if _th.current_thread() is _th.main_thread():
+        signal.signal(signal.SIGINT, handle_signal)
+        signal.signal(signal.SIGTERM, handle_signal)
 
     await asyncio.gather(*tasks)
     langfuse_flush()
